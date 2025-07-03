@@ -1,0 +1,1628 @@
+.PROGRAM auditmatlab()
+
+AUTO REAL slun                        			; serial
+AUTO REAL gcode, icode               			; codici istruzioni
+AUTO REAL ct ,aus , aus2 , aus3 , aus4 , aus5           ; contatore e ausiliare
+AUTO REAL errval                      			; error
+AUTO REAL lastvar[7]        				; valori
+AUTO REAL ausar[6]
+AUTO REAL numero[4]
+AUTO $opstr , $opstr2
+AUTO LOC lastloc , ppt					; locazioni
+AUTO REAL locswitch
+AUTO REAL stkloc[200,7] 				; stack delle locazioni
+AUTO REAL stpnt , endpnt 				; puntatori
+
+
+TYPE "Attaching Serial Line..."              
+
+ATTACH(slun,4) "SERIAL:1"                                      ; attach serial port
+IF IOSTAT(slun)< 0 THEN
+    TYPE "Error Attaching Serial Line"
+    GOTO 1000                                          
+END
+
+TYPE "OK Connesso e in attesa !"
+
+stpnt=1
+endpnt=1
+SET lastloc = HERE
+locswitch= 1
+
+
+
+gcode = GETC(slun , 0)
+
+WHILE gcode<> 255 DO              ; 255 = EXIT
+
+        CASE gcode OF
+
+		VALUE 1 :                           ; GRUPPO I : Movimento,Velocità,Accelerazione,Coordinate
+
+			icode = GETC(slun , 0)
+
+			CASE icode OF
+		
+				VALUE   1 :                                    ; MOVE #PPOINT
+
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+
+					SET #lastloc=#PPOINT(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6]) 
+					MOVE #lastloc
+					locswitch=0
+
+
+				VALUE   2 :                                    ; MOVE TRANS
+				
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+
+					SET lastloc= TRANS(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6]) 
+					MOVE lastloc 
+					locswitch=1
+
+				VALUE   3 :                                    ; MOVES #PPOINT 
+
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+
+					SET #lastloc= #PPOINT(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6]) 
+					MOVES #lastloc
+					locswitch=0
+
+				VALUE   4 :                                    ; MOVES TRANS
+
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+
+					SET lastloc= TRANS(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6]) 
+					MOVES lastloc 
+					locswitch=1
+
+				VALUE   5 :                                    ; MOVE RELATIVE #PPOINT
+
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+
+					
+					SET #ppt = #PDEST
+					DECOMPOSE ausar[0] = #ppt
+SET #lastloc=#PPOINT(ausar[0]+lastvar[1],ausar[1]+lastvar[2],ausar[2]+lastvar[3],ausar[3]+lastvar[4],ausar[4]+lastvar[5],ausar[5]+lastvar[6]) 
+					MOVE #lastloc
+
+					locswitch=0
+
+
+				VALUE   6 :                                    ; MOVE RELATIVE TRANS
+				
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+
+					SET ppt = DEST
+					SET lastloc= ppt:TRANS(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6]) 
+					MOVE lastloc
+
+					locswitch=1
+
+
+				VALUE  11 :                                    ; DRIVE JOINT
+				
+					aus=GETC(slun)
+					FOR ct=1 TO 2
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+
+					DRIVE aus,lastvar[1],lastvar[2]
+
+
+				VALUE  15 :                                    ; MOVE #PPOINT MULTIP
+
+	                                b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+					aus4=1
+					FOR ct= 1 TO aus
+						FOR aus3=1 TO 6
+							numero[0]=GETC(slun)
+							numero[1]=GETC(slun)
+							numero[2]=GETC(slun)
+							numero[3]=GETC(slun)
+							lastvar[aus3]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+						END
+
+						MOVE #PPOINT(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6])
+
+						IF aus4==8 THEN
+							WRITE(slun) $CHR(255)
+							aus4=0
+						END
+						aus4=aus4+1 
+					END
+					locswitch=0
+						
+
+				VALUE  16 :                                    ; MOVE TRANS MULTIP
+
+	                                b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+					aus4=1
+					FOR ct= 1 TO aus
+						FOR aus3=1 TO 6
+							numero[0]=GETC(slun)
+							numero[1]=GETC(slun)
+							numero[2]=GETC(slun)
+							numero[3]=GETC(slun)
+							lastvar[aus3]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+						END
+
+						MOVE TRANS(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6]) 
+
+						IF aus4==8 THEN
+							WRITE(slun) $CHR(255)
+							aus4=0
+						END
+						aus4=aus4+1 
+					END	
+					locswitch=1                               
+
+				VALUE  17 :                                    ; MOVES #PPOINT MULTIP
+
+	                                b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+					aus4=1
+					FOR ct= 1 TO aus
+						FOR aus3=1 TO 6
+							numero[0]=GETC(slun)
+							numero[1]=GETC(slun)
+							numero[2]=GETC(slun)
+							numero[3]=GETC(slun)
+							lastvar[aus3]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+						END
+
+						MOVES #PPOINT(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6]) 
+
+						IF aus4==8 THEN
+							WRITE(slun) $CHR(255)
+							aus4=0
+						END
+						aus4=aus4+1 
+					END   
+					locswitch=0                            
+
+				VALUE  18 :                                    ; MOVES TRANS MULTIP 
+
+	                                b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+					aus4=1
+					FOR ct= 1 TO aus
+						FOR aus3=1 TO 6
+							numero[0]=GETC(slun)
+							numero[1]=GETC(slun)
+							numero[2]=GETC(slun)
+							numero[3]=GETC(slun)
+							lastvar[aus3]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+						END
+
+						MOVES TRANS(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6]) 
+
+						IF aus4==8 THEN
+							WRITE(slun) $CHR(255)
+							aus4=0
+						END
+						aus4=aus4+1 
+					END
+					locswitch=1
+
+
+
+				VALUE  19 :                                    ; MOVE RELATIVE #PPOINT MULTIP
+
+	                                b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+					aus4=1
+					SET #lastloc = #PDEST
+					FOR ct= 1 TO aus
+						FOR aus3=1 TO 6
+							numero[0]=GETC(slun)
+							numero[1]=GETC(slun)
+							numero[2]=GETC(slun)
+							numero[3]=GETC(slun)
+							lastvar[aus3]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+						END
+
+						
+						DECOMPOSE ausar[0] = #lastloc
+SET #lastloc=#PPOINT(ausar[0]+lastvar[1],ausar[1]+lastvar[2],ausar[2]+lastvar[3],ausar[3]+lastvar[4],ausar[4]+lastvar[5],ausar[5]+lastvar[6]) 
+						MOVE #lastloc
+
+						IF aus4==8 THEN
+							WRITE(slun) $CHR(255)
+							aus4=0
+						END
+						aus4=aus4+1 
+					END
+					locswitch=0
+						
+
+				VALUE  20 :                                    ; MOVE RELATIVE TRANS MULTIP
+
+	                                b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+					aus4=1
+					SET lastloc = DEST
+					FOR ct= 1 TO aus
+						FOR aus3=1 TO 6
+							numero[0]=GETC(slun)
+							numero[1]=GETC(slun)
+							numero[2]=GETC(slun)
+							numero[3]=GETC(slun)
+							lastvar[aus3]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+						END
+
+						SET lastloc= lastloc:TRANS(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6]) 
+						MOVE lastloc
+
+						IF aus4==8 THEN
+							WRITE(slun) $CHR(255)
+							aus4=0
+						END
+						aus4=aus4+1 
+					END
+					locswitch=1	      
+
+
+
+				VALUE  22 :                                    ; MOVE LAST
+
+					IF (locswitch==1) THEN
+						MOVE lastloc
+					ELSE
+						MOVE #lastloc
+					END
+
+				VALUE  23 :                                    ; MOVES LAST
+
+					IF (locswitch==1) THEN
+						MOVES lastloc
+					ELSE
+						MOVES #lastloc
+					END
+
+				VALUE  31 :                                    ; SET ABOVE
+					ABOVE
+
+				VALUE  32 :                                    ; SET BELOW
+					BELOW
+
+				VALUE  33 :                                    ; SET RIGHTY
+					RIGHTY
+
+				VALUE  34 :                                    ; SET LEFTY
+					LEFTY
+
+				VALUE  35 :                                    ; POLL ACT CONFIG 
+					WRITE(slun) $CHR(CONFIG(0))
+
+				VALUE  36 :                                    ; SET FLIP
+					FLIP
+
+				VALUE  37 :                                    ; SET NOFLIP
+					NOFLIP
+
+
+				VALUE  38 :                                    ; POLL SET CONFIG
+					WRITE(slun) $CHR(CONFIG(12))
+
+
+
+
+				VALUE  41 :                                    ; POLL COORD
+
+		   			HERE ppt
+
+		    			DECOMPOSE lastvar[1] = ppt
+
+		    			$opstr = $FLTB(lastvar[1])+$FLTB(lastvar[2])+$FLTB(lastvar[3])+$FLTB(lastvar[4])+$FLTB(lastvar[5])+$FLTB(lastvar[6])
+
+		    			WRITE (slun) $opstr
+
+				VALUE  42 :                                    ; POLL JOINTS
+
+		    			HERE #ppt
+	
+		    			DECOMPOSE lastvar[1] = #ppt
+
+		    			$opstr = $FLTB(lastvar[1])+$FLTB(lastvar[2])+$FLTB(lastvar[3])+$FLTB(lastvar[4])+$FLTB(lastvar[5])+$FLTB(lastvar[6])
+
+		    			WRITE (slun) $opstr
+
+				VALUE  43 :                                    ; POLL X
+	                               
+					lastvar[1] = DX(HERE)
+					WRITE(slun) $FLTB(lastvar[1])
+
+
+				VALUE  44 :                                    ; POLL Y
+	                               
+					lastvar[2] = DY(HERE)
+					WRITE(slun) $FLTB(lastvar[2])
+
+
+				VALUE  45 :                                    ; POLL Z
+	                               
+					lastvar[3] = DZ(HERE)
+					WRITE(slun) $FLTB(lastvar[3])
+
+
+				VALUE  46 :                                    ; POLL r
+	                               
+					HERE ppt
+
+					DECOMPOSE lastvar[1] = ppt
+
+					WRITE(slun) $FLTB(lastvar[6])		
+		
+
+				VALUE  47 :                                    ; POLL p
+
+					HERE ppt
+
+					DECOMPOSE lastvar[1] = ppt
+
+					WRITE(slun) $FLTB(lastvar[5])	
+					
+
+				VALUE  48 :                                    ; POLL yaw
+
+					HERE ppt
+
+					DECOMPOSE lastvar[1] = ppt
+
+					WRITE(slun) $FLTB(lastvar[4])				
+
+				VALUE  49 :                                    ; POLL J1
+
+		    			HERE #ppt
+
+					DECOMPOSE lastvar[1] = #ppt
+
+					WRITE(slun) $FLTB(lastvar[1])	
+
+
+				VALUE  50 :                                    ; POLL J2
+
+		    			HERE #ppt
+
+					DECOMPOSE lastvar[1] = #ppt
+
+					WRITE(slun) $FLTB(lastvar[2])	
+
+
+				VALUE  51 :                                    ; POLL J3
+
+		    			HERE #ppt
+
+					DECOMPOSE lastvar[1] = #ppt
+
+					WRITE(slun) $FLTB(lastvar[3])
+
+
+				VALUE  52 :                                    ; POLL J4
+
+		    			HERE #ppt
+
+					DECOMPOSE lastvar[1] = #ppt
+
+					WRITE(slun) $FLTB(lastvar[4])	
+
+
+				VALUE  53 :                                    ; POLL J5
+
+		    			HERE #ppt
+
+					DECOMPOSE lastvar[1] = #ppt
+
+					WRITE(slun) $FLTB(lastvar[5])	
+
+
+				VALUE  54 :                                    ; POLL J6
+
+		    			HERE #ppt
+
+					DECOMPOSE lastvar[1] = #ppt
+
+					WRITE(slun) $FLTB(lastvar[6])	
+
+				VALUE  55 :                                    ; POLL XYZ
+
+					HERE ppt
+
+					DECOMPOSE lastvar[1] = ppt
+
+					$opstr= $FLTB(lastvar[1])+$FLTB(lastvar[2])+$FLTB(lastvar[3])
+					WRITE(slun) $opstr
+
+
+				VALUE  56 :                                    ; POLL ypr
+
+					HERE ppt
+
+					DECOMPOSE lastvar[1] = ppt
+
+					$opstr= $FLTB(lastvar[4])+$FLTB(lastvar[5])+$FLTB(lastvar[6])
+					WRITE(slun) $opstr
+
+
+
+
+				VALUE  61 :                                    ; SET SPEED
+
+					numero[0]=GETC(slun)
+					numero[1]=GETC(slun)
+					numero[2]=GETC(slun)
+					numero[3]=GETC(slun)
+					lastvar[1]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+
+					aus=GETC(slun)
+
+					IF (aus>=8) THEN
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[2]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+ 					END
+
+					CASE aus OF
+						VALUE 0 :
+							SPEED lastvar[1]
+						VALUE 1 :
+							SPEED lastvar[1] ALWAYS
+						VALUE 2 :
+							SPEED lastvar[1] IPS
+						VALUE 3 :
+							SPEED lastvar[1] IPS ALWAYS
+						VALUE 4 :
+							SPEED lastvar[1] MMPS
+						VALUE 5 :
+							SPEED lastvar[1] MMPS ALWAYS
+						VALUE 6 :
+							SPEED lastvar[1] MONITOR
+						VALUE 7 :
+							SPEED lastvar[1] MONITOR ALWAYS
+						VALUE 8 :
+							SPEED lastvar[1],lastvar[2]
+						VALUE 9 :
+							SPEED lastvar[1],lastvar[2] ALWAYS
+						VALUE 10 :
+							SPEED lastvar[1],lastvar[2] IPS
+						VALUE 11 :
+							SPEED lastvar[1],lastvar[2] IPS ALWAYS
+						VALUE 12 :
+							SPEED lastvar[1],lastvar[2] MMPS
+						VALUE 13 :
+							SPEED lastvar[1],lastvar[2] MMPS ALWAYS
+						VALUE 14 :
+							SPEED lastvar[1],lastvar[2] MONITOR
+						VALUE 15 :
+							SPEED lastvar[1],lastvar[2] MONITOR ALWAYS
+					END
+
+
+					
+
+				VALUE  62 :                                    ; SET ACCEL
+
+					aus=GETC(slun)
+
+					numero[0]=GETC(slun)
+					numero[1]=GETC(slun)
+					numero[2]=GETC(slun)
+					numero[3]=GETC(slun)
+					lastvar[1]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+				
+					IF (aus>=4) THEN
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[2]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+					
+
+					CASE aus OF
+						VALUE 1 :
+							ACCEL (lastvar[1])
+						VALUE 2 :
+							ACCEL lastvar[1]
+						VALUE 3 :
+							ACCEL ,lastvar[1]
+						VALUE 4 :
+							ACCEL (lastvar[1]) lastvar[2]
+						VALUE 5 :
+							ACCEL (lastvar[1]) ,lastvar[2]
+						VALUE 6 :
+							ACCEL lastvar[1],lastvar[2]
+						VALUE 7 :
+							numero[0]=GETC(slun)
+							numero[1]=GETC(slun)
+							numero[2]=GETC(slun)
+							numero[3]=GETC(slun)
+							lastvar[3]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+							ACCEL (lastvar[1]) lastvar[2],lastvar[3]
+					END
+
+
+
+				VALUE  63 :                                    ; POLL SPEED
+
+	                                aus=GETC(slun)
+					lastvar[1]= SPEED(aus)
+					WRITE(slun) $FLTB(lastvar[1])	
+
+				VALUE  64 :                                    ; POLL ACCEL
+
+	                                aus=GETC(slun)
+					lastvar[1]=ACCEL(aus)
+					WRITE(slun) $FLTB(lastvar[1])
+
+
+
+
+
+
+
+				VALUE  91 :                                    ; OPEN GRIPPER
+
+					OPEN
+
+				VALUE  92 :                                    ; OPENI GRIPPER
+
+					OPENI
+
+				VALUE  93 :                                    ; CLOSE GRIPPER
+
+					CLOSE
+
+				VALUE  94 :                                    ; CLOSEI GRIPPER
+
+					CLOSEI
+					
+				VALUE  95 :                                    ; RELAX HAND
+
+					RELAX
+
+				VALUE  96 :                                    ; RELAXI HAND
+			
+					RELAXI
+
+				VALUE  97 :                                    ; CHECK HAND
+			
+					WRITE(slun) $CHR(HAND)
+
+				VALUE  98 :                                    ; SET HAND.TIME
+
+					numero[0]=GETC(slun)
+					numero[1]=GETC(slun)
+					numero[2]=GETC(slun)
+					numero[3]=GETC(slun)
+					lastvar[1]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					PARAMETER HAND.TIME = lastvar[1]
+
+
+				VALUE  99 :                                    ; POLL HAND.TIME
+
+					WRITE(slun) $FLTB(PARAMETER(HAND.TIME))
+
+
+
+
+				VALUE 105 :                                    ; APPRO LASTLOC
+
+					numero[0]=GETC(slun)
+					numero[1]=GETC(slun)
+					numero[2]=GETC(slun)
+					numero[3]=GETC(slun)
+					lastvar[1]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+
+					IF (locswitch==1) THEN
+						APPRO lastloc , lastvar[1]
+					ELSE
+						APPRO #lastloc , lastvar[1]
+					END
+
+
+				VALUE 106 :                                    ; APPROS LASTLOC
+
+					numero[0]=GETC(slun)
+					numero[1]=GETC(slun)
+					numero[2]=GETC(slun)
+					numero[3]=GETC(slun)
+					lastvar[1]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+
+					IF (locswitch==1) THEN
+						APPROS lastloc , lastvar[1]
+					ELSE
+						APPROS #lastloc , lastvar[1]
+					END
+
+
+				VALUE 107 :                                    ; DEPART LASTLOC
+
+					numero[0]=GETC(slun)
+					numero[1]=GETC(slun)
+					numero[2]=GETC(slun)
+					numero[3]=GETC(slun)
+					lastvar[1]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+
+					DEPART lastvar[1]
+
+
+				VALUE 108 :                                    ; DEPARTS LASTLOC
+
+					numero[0]=GETC(slun)
+					numero[1]=GETC(slun)
+					numero[2]=GETC(slun)
+					numero[3]=GETC(slun)
+					lastvar[1]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+
+					DEPARTS lastvar[1]
+
+
+
+				VALUE 121 :                                    ; SPIN JOINTS
+
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+
+					SPIN lastvar[1]
+
+				VALUE 122 :                                    ; UNIDIRECT JOINTS
+
+					FOR ct=1 TO 6
+						lastvar[ct]=GETC(slun) - 1
+					END
+
+					UNIDIRECT lastvar[1]
+
+
+			END
+
+		VALUE 2 :                                     ; GRUPPO II : Trasformazioni
+
+			icode = GETC(slun , 0)
+
+			CASE icode OF
+				
+				VALUE   1 :					; BASE
+
+					SET lastloc = BASE
+					locswitch=1
+
+				VALUE   2 :					; DEST
+
+					SET lastloc = DEST
+					locswitch=1
+
+				VALUE   3 :					; HERE
+
+					SET lastloc = HERE
+					locswitch=1
+
+				VALUE   4 :					; INVERSE
+
+					IF (locswitch==1) THEN
+						SET lastloc = INVERSE(lastloc)
+					END
+
+				VALUE   5 :					; NULL
+
+					SET lastloc = NULL
+					locswitch=1	
+
+				VALUE   6 :					; #PDEST
+
+					SET #lastloc = #PDEST
+					locswitch=0
+
+				VALUE   7 :					; #PPOINT
+
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+
+					SET #lastloc= #PPOINT(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6]) 
+					locswitch=0
+					
+
+				VALUE   8 :					; RX
+
+					numero[0]=GETC(slun)
+					numero[1]=GETC(slun)
+					numero[2]=GETC(slun)
+					numero[3]=GETC(slun)
+					lastvar[1]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+
+					SET lastloc = RX(lastvar[1])
+					locswitch=1
+
+				VALUE   9 :					; RY
+
+					numero[0]=GETC(slun)
+					numero[1]=GETC(slun)
+					numero[2]=GETC(slun)
+					numero[3]=GETC(slun)
+					lastvar[1]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+
+					SET lastloc = RY(lastvar[1])
+					locswitch=1
+
+				VALUE  10 :					; RZ
+
+					numero[0]=GETC(slun)
+					numero[1]=GETC(slun)
+					numero[2]=GETC(slun)
+					numero[3]=GETC(slun)
+					lastvar[1]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+
+					SET lastloc = RZ(lastvar[1])
+					locswitch=1
+
+				VALUE  11 :					; SCALE
+
+					numero[0]=GETC(slun)
+					numero[1]=GETC(slun)
+					numero[2]=GETC(slun)
+					numero[3]=GETC(slun)
+					lastvar[1]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					IF (locswitch==1) THEN
+						SET lastloc = SCALE(lastloc BY lastvar[1])
+					END
+					
+
+				VALUE  12 :					; SHIFT
+
+					FOR ct=1 TO 3
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+					IF (locswitch==1) THEN
+						SET lastloc = SHIFT(lastloc BY lastvar[1],lastvar[2],lastvar[3])
+					END
+
+
+				VALUE  13 :					; TOOL
+
+					SET lastloc = TOOL
+					locswitch=1
+
+				VALUE  14 :					; TRANS
+
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+
+					SET lastloc= TRANS(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6]) 
+					locswitch=1
+
+				VALUE  15 :					; HERE #PPOINT
+
+					HERE #lastloc
+					locswitch=0
+
+				VALUE  21 :					; SOLVE.TRANS
+
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+
+					locswitch=1
+					SOLVE.TRANS lastloc , errval = lastvar[1]
+
+				VALUE  22 :					; SOLVE.TRANS LAST
+
+					IF (locswitch==0) THEN
+						DECOMPOSE lastvar[1] = #lastloc
+		
+						locswitch=1
+						SOLVE.TRANS lastloc , errval = lastvar[1]
+					END
+
+
+				VALUE  24 :					; SOLVE.ANGLES LAST
+
+					IF (locswitch==1) THEN
+						aus3=GETC(slun)
+						aus3=aus3*512 + CONFIG(0)
+						HERE #ppt
+						DECOMPOSE ausar[0] = #ppt
+						SOLVE.ANGLES lastvar[1],aus4,errval = lastloc,ausar[0],aus3
+						SET #lastloc=#PPOINT(lastvar[1],lastvar[2],lastvar[3],lastvar[4],lastvar[5],lastvar[6])
+						locswitch=0
+					END
+
+				VALUE  25 :					; SOLVE.FLAGS
+
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						lastvar[ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+
+					WRITE(slun) $CHR(SOLVE.FLAGS (lastvar[1]))
+
+				VALUE  26 :					; SOLVE.FLAGS LAST
+
+					IF (locswitch==0) THEN
+						DECOMPOSE lastvar[1] = #lastloc
+						WRITE(slun) $CHR(SOLVE.FLAGS (lastvar[1]))
+					END
+
+
+				VALUE  31 :					; READ LASTLOC	
+
+					IF (locswitch==1) THEN
+		    				DECOMPOSE lastvar[1] = lastloc
+					ELSE
+		    				DECOMPOSE lastvar[1] = #lastloc
+					END
+
+$opstr = $CHR(locswitch)+$FLTB(lastvar[1])+$FLTB(lastvar[2])+$FLTB(lastvar[3])+$FLTB(lastvar[4])+$FLTB(lastvar[5])+$FLTB(lastvar[6])
+		    			WRITE(slun) $opstr
+
+				VALUE 41 :					; READ LASTVAR[N]
+
+					aus=GETC(slun)
+					WRITE(slun) $FLTB(lastvar[aus])
+
+				VALUE 42 :					; READ LASTVAR
+
+					$opstr = $FLTB(lastvar[1])+$FLTB(lastvar[2])+$FLTB(lastvar[3])+$FLTB(lastvar[4])+$FLTB(lastvar[5])+$FLTB(lastvar[6])
+		    			WRITE(slun) $opstr
+
+				VALUE 51 :					; READ DISTANCE HERE-DEST				
+
+					WRITE(slun) $FLTB(DISTANCE(HERE,DEST))
+
+			END
+
+
+
+
+		VALUE 4 :				 ; GRUPPO IV : MONITOR COMMANDS
+
+			icode = GETC(slun , 0)
+
+			CASE icode OF
+				
+				VALUE  11 :					; DO STRING COMMAND (DOS)	
+
+					READ(slun) $opstr
+					DOS $opstr
+
+				VALUE  21 :					; EXECUTE MONITOR COMMAND (MCS)	
+
+					READ(slun) $opstr
+					MCS $opstr
+
+				VALUE  31 :					; RETURN USED MEMORY (FREE)
+
+					aus=GETC(slun)
+					WRITE(slun) $FLTB(FREE(0,aus))
+
+				VALUE  41 :					; SEND MESSAGE
+
+					READ(slun) $opstr
+					TYPE $opstr
+
+				VALUE  42 :					; BEEP
+
+					TYPE /B
+
+
+			END
+		
+
+
+
+		VALUE 7 :                                ; GRUPPO VII : Stack Delle Locazioni
+
+			icode = GETC(slun , 0)
+
+			CASE icode OF
+				
+				VALUE   1 :							; READ SP
+	
+					b1=INT(stpnt/256)
+					b2=stpnt-b1*256
+					WRITE(slun) $CHR(b1)+$CHR(b2)
+
+				VALUE   2 :							; READ EP
+
+					b1=INT(endpnt/256)
+					b2=endpnt-b1*256
+					WRITE(slun) $CHR(b1)+$CHR(b2)
+
+				VALUE   3 :							; MOVE SP
+					
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					stpnt= aus					
+
+				VALUE   4 :							; MOVE EP
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					endpnt= aus	
+
+				VALUE   5 :							; RESET SP
+			
+					stpnt=1
+
+				VALUE   6 :							; RESET EP
+
+					endpnt=1
+
+				VALUE   7 :							; INCR SP
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+
+					IF (b1<128) THEN	
+						aus=b1*256+b2
+					ELSE
+						aus=(128-b1)*256-b2
+					END
+
+					stpnt= stpnt+aus	
+
+				VALUE   8 :							; INCR EP
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+
+					IF (b1<128) THEN	
+						aus=b1*256+b2
+					ELSE
+						aus=(128-b1)*256-b2
+					END
+
+					endpnt= endpnt+aus	
+
+
+
+				VALUE  10 :							; STORELOC P/T
+
+					stkloc[endpnt,0]=GETC(slun)
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						stkloc[endpnt,ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END
+ 
+					endpnt=endpnt+1
+
+
+				VALUE  11 :							; STORELOC P/T AT X
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus2=b1*256+b2
+
+					stkloc[aus2,0]=GETC(slun)
+					FOR ct=1 TO 6
+						numero[0]=GETC(slun)
+						numero[1]=GETC(slun)
+						numero[2]=GETC(slun)
+						numero[3]=GETC(slun)
+						stkloc[aus2,ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+					END 
+
+
+
+				VALUE  12 :							; STORELOC P/T MULTIP
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					aus5=1
+					aus3=GETC(slun)
+					FOR aus4= 1 TO aus
+						FOR ct=1 TO 6
+							numero[0]=GETC(slun)
+							numero[1]=GETC(slun)
+							numero[2]=GETC(slun)
+							numero[3]=GETC(slun)
+							stkloc[endpnt,ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+						END
+
+						stkloc[endpnt,0]=aus3
+						endpnt=endpnt+1 
+
+						IF aus5==8 THEN
+							WRITE(slun) $CHR(255)
+							aus5=0
+						END
+						aus5=aus5+1 
+					END
+
+
+
+				VALUE  13 :							; STORELOC P/T AT X MULTIP
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus2=b1*256+b2
+
+					aus5=1
+
+					aus3=GETC(slun)
+					FOR aus4= 1 TO aus
+						FOR ct=1 TO 6
+							numero[0]=GETC(slun)
+							numero[1]=GETC(slun)
+							numero[2]=GETC(slun)
+							numero[3]=GETC(slun)
+							stkloc[aus4+aus2-1,ct]=FLTB($CHR(numero[0])+$CHR(numero[1])+$CHR(numero[2])+$CHR(numero[3]))
+						END	
+						stkloc[aus4+aus2-1,0]=aus3
+
+						IF aus5==8 THEN
+							WRITE(slun) $CHR(255)
+							aus5=0
+						END
+						aus5=aus5+1 					
+	
+					END
+
+				VALUE  14 :							; STORELOC LAST
+
+					IF (locswitch==1) THEN
+						DECOMPOSE stkloc[endpnt,1] = lastloc
+						stkloc[endpnt,0]=1
+					ELSE
+						DECOMPOSE stkloc[endpnt,1] = #lastloc
+						stkloc[endpnt,0]=0
+					END
+					endpnt=endpnt+1
+
+				VALUE  15 :							; STORELOC LASTX
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					IF (locswitch==1) THEN
+						DECOMPOSE stkloc[aus,1] = lastloc
+						stkloc[aus,0]=1
+					ELSE
+						DECOMPOSE stkloc[aus,1] = #lastloc
+						stkloc[aus,0]=0
+					END
+	
+
+
+				VALUE  21 :							; READ LSTACK NEXT
+
+					$opstr= $CHR(stkloc[stpnt,0])+$FLTB(stkloc[stpnt,1])+$FLTB(stkloc[stpnt,2])
+					$opstr2=$FLTB(stkloc[stpnt,3])+$FLTB(stkloc[stpnt,4])+$FLTB(stkloc[stpnt,5])+$FLTB(stkloc[stpnt,6])
+					WRITE(slun) $opstr+$opstr2
+
+
+				VALUE  22 :							; READ LSTACK NEXT n
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+					FOR ct=stpnt TO (stpnt+aus-1)
+
+						$opstr= $CHR(stkloc[ct,0])+$FLTB(stkloc[ct,1])+$FLTB(stkloc[ct,2])
+						$opstr2=$FLTB(stkloc[ct,3])+$FLTB(stkloc[ct,4])+$FLTB(stkloc[ct,5])+$FLTB(stkloc[ct,6])
+						WRITE(slun) $opstr+$opstr2
+
+					END
+
+
+				VALUE  23 :							; READ LSTACK LAST
+
+					aus3=endpnt-1
+					$opstr= $CHR(stkloc[aus3,0])+$FLTB(stkloc[aus3,1])+$FLTB(stkloc[aus3,2])
+					$opstr2=$FLTB(stkloc[aus3,3])+$FLTB(stkloc[aus3,4])+$FLTB(stkloc[aus3,5])+$FLTB(stkloc[aus3,6])
+					WRITE(slun) $opstr+$opstr2
+
+
+				VALUE  24 :							; READ LSTACK LAST n
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					FOR ct=(endpnt-aus) TO (endpnt-1)
+						$opstr= $CHR(stkloc[ct,0])+$FLTB(stkloc[ct,1])+$FLTB(stkloc[ct,2])
+						$opstr2=$FLTB(stkloc[ct,3])+$FLTB(stkloc[ct,4])+$FLTB(stkloc[ct,5])+$FLTB(stkloc[ct,6])
+						WRITE(slun) $opstr+$opstr2
+					END
+
+				VALUE  25 :							; READ LSTACK ALL
+
+					aus=endpnt-stpnt
+					b1=INT(aus/256)
+					b2=aus-b1*256
+					WRITE(slun) $CHR(b1)+$CHR(b2)
+
+					FOR ct=(stpnt) TO (endpnt-1)
+						$opstr= $CHR(stkloc[ct,0])+$FLTB(stkloc[ct,1])+$FLTB(stkloc[ct,2])
+						$opstr2=$FLTB(stkloc[ct,3])+$FLTB(stkloc[ct,4])+$FLTB(stkloc[ct,5])+$FLTB(stkloc[ct,6])
+						WRITE(slun) $opstr+$opstr2
+					END
+
+				VALUE  26 :							; READ LSTACK ALL X To Y
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus2=b1*256+b2
+
+					FOR ct=(aus) TO (aus2)
+						$opstr= $CHR(stkloc[ct,0])+$FLTB(stkloc[ct,1])+$FLTB(stkloc[ct,2])
+						$opstr2=$FLTB(stkloc[ct,3])+$FLTB(stkloc[ct,4])+$FLTB(stkloc[ct,5])+$FLTB(stkloc[ct,6])
+						WRITE(slun) $opstr+$opstr2
+					END
+
+
+
+
+
+				VALUE  35 :							; INS Lines
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus2=b1*256+b2
+
+					FOR ct=(endpnt-1) TO aus STEP -1
+						FOR aus4 = 0 TO 6
+							stkloc[ct+aus2,aus4]=stkloc[ct,aus4]
+						END
+					END
+					endpnt=endpnt+aus2
+
+				VALUE  36 :							; DEL Lines
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus2=b1*256+b2
+
+					FOR ct=(aus) TO (endpnt-1-aus2)
+						FOR aus4 = 0 TO 6
+							stkloc[ct,aus4]=stkloc[ct+aus2,aus4]
+						END
+					END
+					endpnt=endpnt-aus2
+
+				VALUE  37 :							; MOVE LSTACK
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus2=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus3=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus4=b1*256+b2
+
+					IF aus4>aus2 THEN
+						FOR ct=0 TO (aus4-aus3)
+							FOR aus5 = 0 TO 6
+								stkloc[aus4-ct,aus5]=stkloc[aus2-ct,aus5]
+							END
+						END
+					ELSE
+						FOR ct=(aus4-aus3) TO 0 STEP -1
+							FOR aus5 = 0 TO 6
+								stkloc[aus4-ct,aus5]=stkloc[aus2-ct,aus5]
+							END
+						END
+					END
+
+
+				VALUE  41 :							; LSTACKMOTION ALL
+
+					WHILE (stpnt<endpnt) DO
+						IF (stkloc[stpnt,0]==0) THEN
+MOVE #PPOINT(stkloc[stpnt,1],stkloc[stpnt,2],stkloc[stpnt,3],stkloc[stpnt,4],stkloc[stpnt,5],stkloc[stpnt,6])
+						ELSE
+MOVE TRANS(stkloc[stpnt,1],stkloc[stpnt,2],stkloc[stpnt,3],stkloc[stpnt,4],stkloc[stpnt,5],stkloc[stpnt,6])
+						END
+						stpnt=stpnt+1
+					END
+
+				VALUE  42 :							; LSTACKMOTION X
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					IF (aus>=stpnt) THEN
+						WHILE (stpnt<=aus) DO
+							IF (stkloc[stpnt,0]==0) THEN
+MOVE #PPOINT(stkloc[stpnt,1],stkloc[stpnt,2],stkloc[stpnt,3],stkloc[stpnt,4],stkloc[stpnt,5],stkloc[stpnt,6])
+							ELSE
+MOVE TRANS(stkloc[stpnt,1],stkloc[stpnt,2],stkloc[stpnt,3],stkloc[stpnt,4],stkloc[stpnt,5],stkloc[stpnt,6])
+							END
+							stpnt=stpnt+1
+						END
+
+					ELSE
+						IF (aus==(stpnt-1)) THEN
+						
+							IF (stkloc[stpnt-1,0]==0) THEN
+MOVE #PPOINT(stkloc[stpnt-1,1],stkloc[stpnt-1,2],stkloc[stpnt-1,3],stkloc[stpnt-1,4],stkloc[stpnt-1,5],stkloc[stpnt-1,6])
+							ELSE
+MOVE TRANS(stkloc[stpnt-1,1],stkloc[stpnt-1,2],stkloc[stpnt-1,3],stkloc[stpnt-1,4],stkloc[stpnt-1,5],stkloc[stpnt-1,6])
+							END
+				
+						ELSE
+							WHILE ((stpnt-2)>=aus) DO
+								IF (stkloc[stpnt-2,0]==0) THEN
+MOVE #PPOINT(stkloc[stpnt-2,1],stkloc[stpnt-2,2],stkloc[stpnt-2,3],stkloc[stpnt-2,4],stkloc[stpnt-2,5],stkloc[stpnt-2,6])
+								ELSE
+MOVE TRANS(stkloc[stpnt-2,1],stkloc[stpnt-2,2],stkloc[stpnt-2,3],stkloc[stpnt-2,4],stkloc[stpnt-2,5],stkloc[stpnt-2,6])
+								END
+								stpnt=stpnt-1
+							END
+						END
+					END	
+					
+
+				VALUE  43 :							; LSTACKMOTION N
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					IF (b1>127) THEN
+						aus=-256*(b1-128)-b2
+					ELSE
+						aus=b1*256+b2
+					END
+
+
+					IF (aus>=0) THEN
+						aus2=stpnt+aus
+						WHILE (stpnt<aus2) DO
+							IF (stkloc[stpnt,0]==0) THEN
+MOVE #PPOINT(stkloc[stpnt,1],stkloc[stpnt,2],stkloc[stpnt,3],stkloc[stpnt,4],stkloc[stpnt,5],stkloc[stpnt,6])
+							ELSE
+MOVE TRANS(stkloc[stpnt,1],stkloc[stpnt,2],stkloc[stpnt,3],stkloc[stpnt,4],stkloc[stpnt,5],stkloc[stpnt,6])
+							END
+							stpnt=stpnt+1
+						END	
+					ELSE
+						aus=-aus
+						FOR ct=1 TO aus
+							IF (stkloc[stpnt-2,0]==0) THEN
+MOVE #PPOINT(stkloc[stpnt-2,1],stkloc[stpnt-2,2],stkloc[stpnt-2,3],stkloc[stpnt-2,4],stkloc[stpnt-2,5],stkloc[stpnt-2,6])
+							ELSE
+MOVE TRANS(stkloc[stpnt-2,1],stkloc[stpnt-2,2],stkloc[stpnt-2,3],stkloc[stpnt-2,4],stkloc[stpnt-2,5],stkloc[stpnt-2,6])
+							END
+							stpnt=stpnt-1
+						END	
+						
+					END
+						
+
+				VALUE  44 :							; LSTACKMOTION I
+
+					aus=endpnt-1
+					WHILE (aus>=stpnt) DO
+						IF (stkloc[stpnt,0]==0) THEN
+MOVE #PPOINT(stkloc[aus,1],stkloc[aus,2],stkloc[aus,3],stkloc[aus,4],stkloc[aus,5],stkloc[aus,6])
+						ELSE
+MOVE TRANS(stkloc[aus,1],stkloc[aus,2],stkloc[aus,3],stkloc[aus,4],stkloc[aus,5],stkloc[aus,6])
+						END
+						aus=aus-1
+					END
+
+
+
+				VALUE  61 :							; COPY_LSTACK
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus2=b1*256+b2
+
+					FOR aus4 = 0 TO 6
+						stkloc[aus2,aus4]=stkloc[aus,aus4]
+					END
+
+
+				VALUE  62 :							; COPY_LSTACK n
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus2=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus3=b1*256+b2
+
+					FOR ct=0 TO (aus3-1)
+						FOR aus4 = 0 TO 6
+							stkloc[aus2+ct,aus4]=stkloc[aus+ct,aus4]
+						END
+					END
+
+				VALUE  63 :							; COPY_LSTACK TO NEXT
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					FOR aus4 = 0 TO 6
+						stkloc[endpnt,aus4]=stkloc[aus,aus4]
+					END
+
+					endpnt=endpnt+1
+
+				VALUE  64 :							; COPY_LSTACK n TO NEXT
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus3=b1*256+b2
+
+					FOR ct=0 TO (aus3-1)
+						FOR aus4 = 0 TO 6
+							stkloc[aus2+ct,aus4]=stkloc[endpnt,aus4]
+						END
+					END
+					endpnt=endpnt+aus3
+
+
+
+				VALUE  71 :							; SWAP_LSTACK
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus2=b1*256+b2
+
+					FOR ct=0 TO 6
+						ausar[ct]=stkloc[aus,ct+1]
+						stkloc[aus,ct+1]=stkloc[aus2,ct+1]
+						stkloc[aus2,ct+1]=ausar[ct]
+					END
+						aus4=stackloc[aus,0]
+						stkloc[aus,0]=stkloc[aus2,0]
+						stkloc[aus2,0]=aus4
+
+				VALUE  72 :							; SWAP_LSTACK n
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus2=b1*256+b2
+
+					b1=GETC(slun)
+					b2=GETC(slun)
+					aus3=b1*256+b2
+
+					FOR aus5=1 TO aus3
+						FOR ct=0 TO 6
+							ausar[ct]=stkloc[aus,ct+1]
+							stkloc[aus,ct+1]=stkloc[aus2,ct+1]
+							stkloc[aus2,ct+1]=ausar[ct]
+						END
+							aus4=stackloc[aus,0]
+							stkloc[aus,0]=stkloc[aus2,0]
+							stkloc[aus2,0]=aus4
+						aus=aus+1
+						aus2=aus2+1
+
+					END
+
+
+			
+
+
+			END
+
+
+		VALUE 191 :			      ; WAIT CONDITION
+
+			READ(slun) $opstr
+			DOS $opstr
+			WRITE(slun) $CHR(255)
+
+
+		VALUE 201 :			      ; BRAKE
+			BRAKE
+
+
+		VALUE 211 :			      ; SIGNAL ON
+			b1=GETC(slun)
+			b2=GETC(slun)
+			aus=b1*256+b2
+
+			SIGNAL aus
+
+		VALUE 212 :			      ; SIGNAL OFF
+			b1=GETC(slun)
+			b2=GETC(slun)
+			aus=b1*256+b2
+
+			SIGNAL -aus
+
+
+		VALUE 213 :			      ; READ SIGNAL
+			b1=GETC(slun)
+			b2=GETC(slun)
+			aus=b1*256+b2
+
+			WRITE(slun) $CHR(-SIG(aus))
+
+
+		VALUE 213 :			      ; RESET SIGNALS
+			RESET
+
+
+
+
+		VALUE 221 :                           ; CPOFF
+
+			CPOFF
+
+		VALUE 222 :                           ; CPOFF ALWAYS
+
+			CPOFF ALWAYS
+
+		VALUE 223 :                           ; CPON
+
+			CPON
+
+		VALUE 224 :                           ; CPON ALWAYS
+
+			CPON ALWAYS
+
+		VALUE 225 :                           ; ENABLE CP
+
+			ENABLE CP
+
+		VALUE 226 :                           ; DISABLE CP
+
+			DISABLE CP
+
+		VALUE 227 :                           ; BREAK
+
+			BREAK
+			WRITE(slun) $CHR(255) ;
+
+		VALUE 228 :			      ; CHECK
+
+			WRITE(slun) $CHR(255) ;	
+
+
+
+	END
+
+
+	gcode = GETC(slun , 0)
+END
+
+
+TYPE "Chiusura...OK"
+
+DETACH(slun)
+
+1000
+
+.END
+
+.STRINGS
+.END
